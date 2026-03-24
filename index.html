@@ -1,0 +1,69 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0d1014">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="RockyTalk">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Rocky Translator</title>
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div class="app-shell">
+        <header class="panel panel--header">
+            <p class="eyebrow">GRACE TERMINAL / TRANSLATION STACK</p>
+            <h1>Rocky Translator</h1>
+            <p class="tagline">地球語を、読みやすいロッキー風の短文へ変換。</p>
+            <div class="status-row" aria-label="system status">
+                <span class="status-pill">STATIC PWA</span>
+                <span class="status-pill status-pill--input">INPUT: JA</span>
+                <span id="systemStatus" class="status-pill status-pill--ok" data-state="ok">SYSTEM READY</span>
+            </div>
+        </header>
+
+        <section id="installHint" class="panel panel--hint" hidden>
+            <p>iPhoneでは Safari の共有メニューから「ホーム画面に追加」で単体アプリ化できます。</p>
+        </section>
+
+        <main class="workspace">
+            <section class="panel panel--input">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">[GRACE &gt; INPUT]</p>
+                        <h2>入力テキスト</h2>
+                    </div>
+                    <p class="section-copy">日本語の文をそのまま入力してください。</p>
+                </div>
+                <label class="sr-only" for="inputText">入力テキスト</label>
+                <textarea id="inputText" placeholder="例: グレースは本当にすごい友達です。ありがとう。"></textarea>
+            </section>
+
+            <div class="controls" aria-label="translation controls">
+                <button id="translateButton" class="action action--primary" type="button">変換 / TRANSLATE</button>
+                <button id="clearButton" class="action" type="button">クリア</button>
+                <button id="copyButton" class="action action--accent" type="button">コピー</button>
+            </div>
+
+            <section class="panel panel--output">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker section-kicker--amber">[ROCKY &gt; OUTPUT]</p>
+                        <h2>変換結果</h2>
+                    </div>
+                    <p class="section-copy">短い節に区切るほど、ロッキー感が強くなります。</p>
+                </div>
+                <output id="outputText" class="output-text" aria-live="polite">待機中。入力どうぞ、フレンド。</output>
+                <p id="helperText" class="helper-text">コピーボタンで、そのままメッセージに貼り付けできます。</p>
+            </section>
+        </main>
+    </div>
+
+    <script src="./app.js" defer></script>
+</body>
+</html>
