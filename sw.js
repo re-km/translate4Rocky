@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = "rocky-translator-v1";
+﻿const CACHE_NAME = "rocky-translator-v2";
 const APP_SHELL = [
     "./",
     "./index.html",

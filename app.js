@@ -2,13 +2,15 @@
     { pattern: /^(こんにちは|こんばんは|おはよう)[。!！]?$/u, replacement: "こんにちは。フレンド。" },
     { pattern: /^(ありがとう|感謝します|サンキュー)[。!！]?$/u, replacement: "感謝。フレンド。" },
     { pattern: /^(ごめん|ごめんなさい|すみません|申し訳ない)[。!！]?$/u, replacement: "すまない。サッド。" },
-    { pattern: /^(大丈夫|問題ない)[。!！]?$/u, replacement: "問題、小さい。" }
+    { pattern: /^(大丈夫|問題ない)[。!！]?$/u, replacement: "問題、小さい。" },
+    { pattern: /^(はい|了解|オーケー)[。!！]?$/u, replacement: "理解、完了。" },
+    { pattern: /^(いいえ|だめ)[。!！]?$/u, replacement: "ノー。" }
 ];
 
 const PROPER_NOUN_RULES = [
-    { pattern: /宇宙の藻|アストロファージ/gu, replacement: "アストロファージ、光 食べる、バッド" },
-    { pattern: /タウメバ|アメーバ/gu, replacement: "タウメバ、食べる、アストロファージ" },
-    { pattern: /ゼノナイト/gu, replacement: "ゼノナイト、強い、アメイズ" },
+    { pattern: /宇宙の藻|アストロファージ/gu, replacement: "アストロファージ" },
+    { pattern: /タウメバ|アメーバ/gu, replacement: "タウメバ" },
+    { pattern: /ゼノナイト/gu, replacement: "ゼノナイト" },
     { pattern: /地球人|人類|人間たち|人間/gu, replacement: "地球人" },
     { pattern: /エリダニアン|エリド人|同族/gu, replacement: "エリド人" },
     { pattern: /グレース/gu, replacement: "グレース" },
@@ -16,10 +18,11 @@ const PROPER_NOUN_RULES = [
 ];
 
 const EMOTION_RULES = [
-    { pattern: /すごい|素晴らしい|最高|見事|驚異的/gu, replacement: "アメイズ" },
-    { pattern: /嬉しい|楽しい|幸せ|安心/gu, replacement: "ハッピー" },
+    { pattern: /すごい|素晴らしい|最高|見事|驚異的|天才/gu, replacement: "アメイズ" },
+    { pattern: /嬉しい|楽しい|幸せ|安心|うれしい/gu, replacement: "ハッピー" },
     { pattern: /悲しい|残念|つらい|辛い|落ち込む/gu, replacement: "サッド" },
-    { pattern: /危険|やばい|まずい|怖い|不安/gu, replacement: "バッド" }
+    { pattern: /危険|やばい|まずい|怖い|不安/gu, replacement: "バッド" },
+    { pattern: /安全|平気/gu, replacement: "グッド" }
 ];
 
 const RELATION_RULES = [
@@ -33,10 +36,26 @@ const ACTION_RULES = [
     { pattern: /わからない|分からない|わかりません|不明|未知/gu, replacement: "理解、不可" },
     { pattern: /食べます|食べる|食事|ご飯/gu, replacement: "食べる" },
     { pattern: /眠い|寝ます|寝る|眠ります|睡眠|休みます|休む/gu, replacement: "スリープ" },
-    { pattern: /助けて|救助して/gu, replacement: "助けてほしい" },
+    { pattern: /助けてください|助けて下さい/gu, replacement: "助けてほしい" },
+    { pattern: /来てください|来て下さい/gu, replacement: "来てほしい" },
     { pattern: /必要がある|必要です/gu, replacement: "必要" },
     { pattern: /したいです|したい/gu, replacement: "希望" },
-    { pattern: /できます|できる/gu, replacement: "可能" }
+    { pattern: /できます|できる/gu, replacement: "可能" },
+    { pattern: /急いで|早く/gu, replacement: "早く" }
+];
+
+const FILLER_RULES = [
+    { pattern: /本当に|とても|かなり|すごく|めっちゃ/gu, replacement: "" },
+    { pattern: /ちょっと|少しだけ/gu, replacement: "少し" },
+    { pattern: /という|ですので/gu, replacement: "" }
+];
+
+const PROTECTED_PHRASES = [
+    { raw: "理解、不可", token: "__UNDERSTAND_NO__" },
+    { raw: "理解、完了", token: "__UNDERSTAND_OK__" },
+    { raw: "問題、小さい", token: "__PROBLEM_SMALL__" },
+    { raw: "助けてほしい", token: "__HELP_ME__" },
+    { raw: "来てほしい", token: "__COME_SOON__" }
 ];
 
 const PLACEHOLDER_OUTPUT = "待機中。入力どうぞ、フレンド。";
@@ -94,37 +113,64 @@ function detectSentenceMode(sentence) {
     return "statement";
 }
 
-function trimSentenceEnding(text) {
-    return text
-        .replace(/[。!?？！]+$/g, "")
-        .replace(/(ですか|ますか|でしょうか|でしたか|かな|なの|か)$/gu, "")
-        .trim();
+function stripSentenceEnding(text, mode) {
+    let result = text.replace(/[。!?？！]+$/g, "").trim();
+
+    if (mode === "question") {
+        result = result.replace(/(ですか|ますか|でしょうか|でしたか|かな|なの|か)$/gu, "");
+    }
+
+    result = result.replace(/(です|でした|である|だ)$/gu, "");
+    return result.trim();
 }
 
-function reshapeGrammar(text) {
+function normalizeRequests(text) {
     return text
-        .replace(/(私は|わたしは|僕は|ぼくは|俺は)/gu, "わたしは")
-        .replace(/(あなたは|君は|きみは)/gu, "あなたは")
-        .replace(/(そして|それから)/gu, "。次、")
+        .replace(/助けてください|助けて下さい/gu, "助けてほしい")
+        .replace(/来てください|来て下さい/gu, "来てほしい")
+        .replace(/([一-龯ぁ-んァ-ヴー々〆ヵヶA-Za-z0-9ー]+?)してください/gu, "$1してほしい")
+        .replace(/([一-龯ぁ-んァ-ヴー々〆ヵヶA-Za-z0-9ー]+?)下さい/gu, "$1してほしい");
+}
+
+function telegraphize(text) {
+    return text
+        .replace(/(私は|わたしは|僕は|ぼくは|俺は)/gu, "わたし、")
+        .replace(/(あなたは|君は|きみは)/gu, "あなた、")
+        .replace(/(だから|なので|ので|から)/gu, "。理由、")
+        .replace(/(そして|それから|それで|次に)/gu, "。次、")
         .replace(/(でも|しかし|だけど|けれど|ですが)/gu, "。しかし、")
-        .replace(/(だから|なので|ゆえに|ので)/gu, "。理由、")
-        .replace(/(とても|すごく|かなり|本当に)/gu, "とても")
-        .replace(/(ちょっと|少しだけ)/gu, "少し")
-        .replace(/してください|下さい/gu, "してほしい")
-        .replace(/です/gu, "")
-        .replace(/ます/gu, "")
+        .replace(/([一-龯ぁ-んァ-ヴー々〆ヵヶA-Za-z0-9ー]+)(は|が|を|に|へ|と|で|も)/gu, "$1、")
+        .replace(/(もう)/gu, "今")
+        .replace(/(まだ)/gu, "まだ")
+        .replace(/(です|ます|でした|ました|である|だろう|でしょう|する)$/gu, "")
         .replace(/[,:：]/g, "、");
 }
 
 function addRockyCadence(text) {
     return text
-        .replace(/(アメイズ|ハッピー|サッド|バッド)(フレンド|感謝|すまない|理解、完了|理解、不可)/gu, "$1、$2")
-        .replace(/(フレンド)(感謝|すまない|アメイズ|ハッピー|サッド|バッド)/gu, "$1、$2")
-        .replace(/(理解、完了)(フレンド|感謝|アメイズ|ハッピー|サッド|バッド)/gu, "$1、$2")
-        .replace(/(理解、不可)(フレンド|感謝|アメイズ|ハッピー|サッド|バッド)/gu, "$1、$2")
-        .replace(/(バッド)(?:は)?バッド/gu, "$1")
-        .replace(/(アメイズ)(?:は)?アメイズ/gu, "$1")
-        .replace(/、(フレンド|アメイズ|ハッピー|サッド|バッド)$/gu, "。$1");
+        .replace(/(アメイズ|ハッピー|サッド|バッド|グッド)(フレンド|感謝|すまない)/gu, "$1、$2")
+        .replace(/(グレース|ロッキー|地球人|エリド人)(アメイズ|ハッピー|サッド|バッド|グッド|フレンド)/gu, "$1、$2")
+        .replace(/(フレンド)(感謝|すまない|アメイズ|ハッピー|サッド|バッド|グッド)/gu, "$1、$2")
+        .replace(/(バッド)(?:、)?(バッド)/gu, "$1")
+        .replace(/(アメイズ)(?:、)?(アメイズ)/gu, "$1")
+        .replace(/(グッド)(?:、)?(グッド)/gu, "$1")
+        .replace(/(理解、完了)(?:、)?(理解、完了)/gu, "$1")
+        .replace(/(理解、不可)(?:、)?(理解、不可)/gu, "$1")
+        .replace(/(今|今日|明日|まだ|早く)(来てほしい|助けてほしい|スリープ|理解、不可|理解、完了|必要|可能|希望)/gu, "$1、$2");
+}
+
+function protectPhrases(text) {
+    return PROTECTED_PHRASES.reduce(
+        (value, phrase) => value.replaceAll(phrase.raw, phrase.token),
+        text
+    );
+}
+
+function restorePhrases(text) {
+    return PROTECTED_PHRASES.reduce(
+        (value, phrase) => value.replaceAll(phrase.token, phrase.raw),
+        text
+    );
 }
 
 function cleanupOutput(text) {
@@ -134,32 +180,40 @@ function cleanupOutput(text) {
         .replace(/、+/g, "、")
         .replace(/。(?=、)/g, "")
         .replace(/^、|、$/g, "")
-        .replace(/。$/, "")
+        .replace(/^[。\s]+|[。\s]+$/g, "")
         .trim();
+}
+
+function explodeIntoRockyPhrases(text) {
+    const protectedText = protectPhrases(text);
+    const parts = protectedText
+        .replace(/。+/g, "。")
+        .split(/[。]/)
+        .flatMap((part) => part.split(/[、]/))
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+    return restorePhrases(parts.join("。"));
 }
 
 function finalizeSentence(text, mode) {
     let result = cleanupOutput(addRockyCadence(text));
-    const commaCount = (result.match(/、/g) || []).length;
 
     if (!result) {
         return mode === "question" ? "質問？" : "解析、不可。";
     }
 
-    if (result.length > 18 || commaCount > 1) {
-        result = result.replace(/、/g, "。");
-        result = cleanupOutput(result);
-    }
+    result = cleanupOutput(explodeIntoRockyPhrases(result));
 
     if (mode === "question") {
         return `${result}。質問？`;
     }
 
     if (mode === "negative") {
-        if (/(理解、不可|ノー|不可)/.test(result)) {
+        if (/(理解、不可|ノー|不可|バッド)/.test(result)) {
             return `${result}。`;
         }
-        return `${cleanupOutput(`${result}。ノー`)}。`;
+        return `${result}。ノー。`;
     }
 
     return `${result}。`;
@@ -179,13 +233,15 @@ function transformSentence(sentence) {
     }
 
     const mode = detectSentenceMode(trimmed);
-    let text = trimSentenceEnding(trimmed);
+    let text = stripSentenceEnding(trimmed, mode);
 
+    text = normalizeRequests(text);
     text = applyRules(text, PROPER_NOUN_RULES);
     text = applyRules(text, EMOTION_RULES);
     text = applyRules(text, RELATION_RULES);
     text = applyRules(text, ACTION_RULES);
-    text = reshapeGrammar(text);
+    text = applyRules(text, FILLER_RULES);
+    text = telegraphize(text);
 
     return finalizeSentence(text, mode);
 }
