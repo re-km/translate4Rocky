@@ -27,7 +27,9 @@ const SYSTEM_INSTRUCTION = [
 
 const FEW_SHOT_EXAMPLES = [
     "入力: グレースは本当に頼れる友達です。ありがとう。\n出力: グレース、頼れる。フレンド。感謝。",
-    "入力: どうしてほしくないのか理解できない。\n出力: 欲しくない。疑問？ 理解、不可。サッド。",
+    "入力: どうしてほしくないのか理解できない。\n出力: なぜ、欲しくない？ 理解、不可。サッド。",
+    "入力: なぜ持っていないのかわからない。\n出力: なぜ持っていない、疑問？ 理解、不可。",
+    "入力: 翻訳できました。\n出力: 翻訳、完了。グッド。",
     "入力: この装置は危険だから、今すぐ止めてください。\n出力: この装置、バッド。今、止めてほしい。",
     "入力: 私はまだ分かっていません。でも、やってみます。\n出力: わたし、まだ理解、不可。しかし、試す。"
 ].join("\n\n");
@@ -140,9 +142,10 @@ function canonicalizeRockyFragment(fragment) {
     const normalized = String(fragment || "")
         .trim()
         .replace(/^[。、「」\s]+|[。、「」\s]+$/g, "")
-        .replace(/理解[、 ]?(?:無理|不能)/g, "理解、不可")
-        .replace(/(?:わからない|分からない|理解できない|理解出来ない|不明|無理)/g, "理解、不可")
-        .replace(/ほしくない/g, "欲しくない");
+        .replace(/理解[、 ]?(?:無理|不能|不可能)/g, "理解、不可")
+        .replace(/(?:わからない|分からない|理解できない|理解出来ない|不明)/g, "理解、不可")
+        .replace(/ほしくない/g, "欲しくない")
+        .replace(/翻訳できました|翻訳できた|翻訳しました|翻訳した/g, "翻訳、完了");
 
     if (!normalized) {
         return "";
@@ -152,12 +155,24 @@ function canonicalizeRockyFragment(fragment) {
         return "理解、不可";
     }
 
-    if (/^(?:疑問|疑問？|どうして|なぜ|なんで)$/.test(normalized)) {
+    if (/^(?:疑問|疑問？)$/.test(normalized)) {
         return "疑問？";
+    }
+
+    if (/^(?:どうして|なぜ|なんで)$/.test(normalized)) {
+        return "なぜ";
     }
 
     if (/^(?:欲しくない|ほしくない)$/.test(normalized)) {
         return "欲しくない";
+    }
+
+    if (/^(?:翻訳、?完了|完了)$/.test(normalized)) {
+        return "翻訳、完了";
+    }
+
+    if (/^(?:グッド|よい|良い|OK|ok|オーケー)$/.test(normalized)) {
+        return "グッド";
     }
 
     if (/^(?:サッド|悲しい|つらい|辛い)$/.test(normalized)) {
@@ -165,6 +180,28 @@ function canonicalizeRockyFragment(fragment) {
     }
 
     return normalized;
+}
+
+function extractWhyPhrase(sourceText) {
+    const match = String(sourceText || "").match(/(?:どうして|なぜ|なんで)\s*(.+?)(?:のか)?(?:理解できない|理解出来ない|わからない|分からない|不明)/);
+
+    if (!match) {
+        return "";
+    }
+
+    const clause = String(match[1] || "")
+        .replace(/[。！？!?]+$/g, "")
+        .trim();
+
+    if (!clause) {
+        return "";
+    }
+
+    if (/(欲しくない|ほしくない)/.test(clause)) {
+        return "なぜ、欲しくない？";
+    }
+
+    return `なぜ${clause}、疑問？`;
 }
 
 function buildSemanticFragments(sourceText) {
@@ -175,11 +212,16 @@ function buildSemanticFragments(sourceText) {
         }
     };
 
-    if (/(欲しくない|ほしくない)/.test(sourceText)) {
+    const whyPhrase = extractWhyPhrase(sourceText);
+    if (whyPhrase) {
+        add(whyPhrase);
+    }
+
+    if (!whyPhrase && /(欲しくない|ほしくない)/.test(sourceText)) {
         add("欲しくない");
     }
 
-    if (/(どうして|なぜ|なんで|理由)/.test(sourceText)) {
+    if (!whyPhrase && /(どうして|なぜ|なんで|理由|のか)/.test(sourceText)) {
         add("疑問？");
     }
 
@@ -187,7 +229,12 @@ function buildSemanticFragments(sourceText) {
         add("理解、不可");
     }
 
-    if (/(欲しくない|ほしくない|悲しい|つらい|辛い|困る|ショック|戸惑|理解できない|理解出来ない|わからない|分からない)/.test(sourceText)) {
+    if (/(翻訳できました|翻訳できた|翻訳しました|翻訳した|翻訳完了|翻訳、完了)/.test(sourceText)) {
+        add("翻訳、完了");
+        add("グッド");
+    }
+
+    if (/(欲しくない|ほしくない|悲しい|つらい|辛い|困る|ショック|戸惑)/.test(sourceText)) {
         add("サッド");
     }
 
@@ -197,7 +244,7 @@ function buildSemanticFragments(sourceText) {
 function splitRockyFragments(text) {
     return String(text || "")
         .replace(/\n+/g, "。")
-        .replace(/、(?=(疑問？|理解、不可|サッド|バッド|グッド|アメイズ|フレンド|ノー|イエス|欲しくない))/g, "。")
+        .replace(/、(?=(疑問？|理解、不可|サッド|バッド|グッド|アメイズ|フレンド|ノー|イエス|欲しくない|翻訳、完了))/g, "。")
         .split(/[。]+/)
         .map(canonicalizeRockyFragment)
         .filter(Boolean);
@@ -239,13 +286,17 @@ function polishRockyOutput(sourceText, outputText) {
     const merged = [...semanticFragments];
 
     for (const fragment of modelFragments) {
-        if (!merged.includes(fragment)) {
+        const alreadyCovered = merged.some((existing) => existing === fragment || existing.includes(fragment) || fragment.includes(existing));
+        if (!alreadyCovered) {
             merged.push(fragment);
         }
     }
 
     const cleaned = merged.filter((fragment, index, list) => {
         if (fragment === "理解" && list.includes("理解、不可")) {
+            return false;
+        }
+        if (fragment === "サッド" && list.includes("グッド")) {
             return false;
         }
         return true;
@@ -787,5 +838,8 @@ document.addEventListener("DOMContentLoaded", () => {
         setSystemStatus("failed");
     });
 });
+
+
+
 
 
