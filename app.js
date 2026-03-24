@@ -19,7 +19,7 @@ const SYSTEM_INSTRUCTION = [
     "疑問、否定、困惑、悲しさは落とさずに残してください。",
     "『どうして』『なぜ』『理由がわからない』『理解できない』『ほしくない』のような語は重要です。必要なら『疑問？』『理解、不可』『サッド』を使ってください。",
     "『無理』のような一般的すぎる言い換えは避け、『理解、不可』のようなロッキーらしい言い方を優先してください。",
-    "フレンド、理解、イエス、ノー、アメイズ、グッド、バッドのような語を必要な時だけ自然に使ってください。",
+    "フレンド、理解、イエス、ノー、アメイズ、良い、悪いのような語を必要な時だけ自然に使ってください。",
     "毎回同じ語を乱用しないでください。",
     "原作の具体的な文章を再現したり引用したりせず、新しい表現で返してください。",
     "固有名詞と意味は維持してください。"
@@ -29,8 +29,8 @@ const FEW_SHOT_EXAMPLES = [
     "入力: グレースは本当に頼れる友達です。ありがとう。\n出力: グレース、頼れる。フレンド。感謝。",
     "入力: どうしてほしくないのか理解できない。\n出力: なぜ、欲しくない？ 理解、不可。サッド。",
     "入力: なぜ持っていないのかわからない。\n出力: なぜ持っていない、疑問？ 理解、不可。",
-    "入力: 翻訳できました。\n出力: 翻訳、完了。グッド。",
-    "入力: この装置は危険だから、今すぐ止めてください。\n出力: この装置、バッド。今、止めてほしい。",
+    "入力: 翻訳できました。\n出力: 翻訳、完了。良い。",
+    "入力: この装置は危険だから、今すぐ止めてください。\n出力: この装置、悪い。今、止めてほしい。",
     "入力: 私はまだ分かっていません。でも、やってみます。\n出力: わたし、まだ理解、不可。しかし、試す。"
 ].join("\n\n");
 
@@ -145,6 +145,8 @@ function canonicalizeRockyFragment(fragment) {
         .replace(/理解[、 ]?(?:無理|不能|不可能)/g, "理解、不可")
         .replace(/(?:わからない|分からない|理解できない|理解出来ない|不明)/g, "理解、不可")
         .replace(/ほしくない/g, "欲しくない")
+        .replace(/グッド/g, "良い")
+        .replace(/バッド/g, "悪い")
         .replace(/翻訳できました|翻訳できた|翻訳しました|翻訳した/g, "翻訳、完了");
 
     if (!normalized) {
@@ -172,7 +174,11 @@ function canonicalizeRockyFragment(fragment) {
     }
 
     if (/^(?:グッド|よい|良い|OK|ok|オーケー)$/.test(normalized)) {
-        return "グッド";
+        return "良い";
+    }
+
+    if (/^(?:バッド|悪い)$/.test(normalized)) {
+        return "悪い";
     }
 
     if (/^(?:サッド|悲しい|つらい|辛い)$/.test(normalized)) {
@@ -231,7 +237,7 @@ function buildSemanticFragments(sourceText) {
 
     if (/(翻訳できました|翻訳できた|翻訳しました|翻訳した|翻訳完了|翻訳、完了)/.test(sourceText)) {
         add("翻訳、完了");
-        add("グッド");
+        add("良い");
     }
 
     if (/(欲しくない|ほしくない|悲しい|つらい|辛い|困る|ショック|戸惑)/.test(sourceText)) {
@@ -244,7 +250,7 @@ function buildSemanticFragments(sourceText) {
 function splitRockyFragments(text) {
     return String(text || "")
         .replace(/\n+/g, "\u3002")
-        .replace(/\u3001(?=(\u7591\u554f\uff1f|\u7406\u89e3\u3001\u4e0d\u53ef|\u30b5\u30c3\u30c9|\u30d0\u30c3\u30c9|\u30b0\u30c3\u30c9|\u30a2\u30e1\u30a4\u30ba|\u30d5\u30ec\u30f3\u30c9|\u30ce\u30fc|\u30a4\u30a8\u30b9|\u6b32\u3057\u304f\u306a\u3044|\u7ffb\u8a33\u3001\u5b8c\u4e86))/g, "\u3002")
+        .replace(/\u3001(?=(\u7591\u554f\uff1f|\u7406\u89e3\u3001\u4e0d\u53ef|\u30b5\u30c3\u30c9|\u30d0\u30c3\u30c9|\u30b0\u30c3\u30c9|\u60aa\u3044|\u826f\u3044|\u30a2\u30e1\u30a4\u30ba|\u30d5\u30ec\u30f3\u30c9|\u30ce\u30fc|\u30a4\u30a8\u30b9|\u6b32\u3057\u304f\u306a\u3044|\u7ffb\u8a33\u3001\u5b8c\u4e86))/g, "\u3002")
         .split(/[\u3002]+/)
         .map(canonicalizeRockyFragment)
         .filter(Boolean);
@@ -328,7 +334,7 @@ function polishRockyOutput(sourceText, outputText) {
         if (fragment === "理解" && list.includes("理解、不可")) {
             return false;
         }
-        if (fragment === "サッド" && list.includes("グッド")) {
+        if (fragment === "サッド" && list.includes("良い")) {
             return false;
         }
         return true;
