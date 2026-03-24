@@ -243,13 +243,41 @@ function buildSemanticFragments(sourceText) {
 
 function splitRockyFragments(text) {
     return String(text || "")
-        .replace(/\n+/g, "。")
-        .replace(/、(?=(疑問？|理解、不可|サッド|バッド|グッド|アメイズ|フレンド|ノー|イエス|欲しくない|翻訳、完了))/g, "。")
-        .split(/[。]+/)
+        .replace(/\n+/g, "\u3002")
+        .replace(/\u3001(?=(\u7591\u554f\uff1f|\u7406\u89e3\u3001\u4e0d\u53ef|\u30b5\u30c3\u30c9|\u30d0\u30c3\u30c9|\u30b0\u30c3\u30c9|\u30a2\u30e1\u30a4\u30ba|\u30d5\u30ec\u30f3\u30c9|\u30ce\u30fc|\u30a4\u30a8\u30b9|\u6b32\u3057\u304f\u306a\u3044|\u7ffb\u8a33\u3001\u5b8c\u4e86))/g, "\u3002")
+        .split(/[\u3002]+/)
         .map(canonicalizeRockyFragment)
         .filter(Boolean);
 }
 
+function normalizeComparableText(text) {
+    return String(text || "")
+        .replace(/[\u3002\u3001\u300c\u300d\uff01\uff1f!?\s]+/g, "")
+        .trim();
+}
+
+function shouldDropModelFragment(fragment, sourceText, semanticFragments) {
+    const comparableFragment = normalizeComparableText(fragment);
+    const comparableSource = normalizeComparableText(sourceText);
+
+    if (!comparableFragment) {
+        return true;
+    }
+
+    if (semanticFragments.length && comparableFragment.length >= 2 && comparableSource.includes(comparableFragment)) {
+        return true;
+    }
+
+    if (fragment === "\u30ce\u30fc" && semanticFragments.some((value) => /^(?:\u6b32\u3057\u304f\u306a\u3044|\u7406\u89e3\u3001\u4e0d\u53ef|\u30b5\u30c3\u30c9)$/.test(value))) {
+        return true;
+    }
+
+    if (/^(?:\u304d\u306a\u3044|\u3067\u304d\u306a\u3044|\u4e0d\u53ef)$/.test(fragment) && semanticFragments.includes("\u7406\u89e3\u3001\u4e0d\u53ef")) {
+        return true;
+    }
+
+    return false;
+}
 function formatRockyFragments(fragments) {
     return fragments.reduce((result, fragment, index) => {
         const value = String(fragment || "").trim();
@@ -286,6 +314,10 @@ function polishRockyOutput(sourceText, outputText) {
     const merged = [...semanticFragments];
 
     for (const fragment of modelFragments) {
+        if (shouldDropModelFragment(fragment, sourceText, semanticFragments)) {
+            continue;
+        }
+
         const alreadyCovered = merged.some((existing) => existing === fragment || existing.includes(fragment) || fragment.includes(existing));
         if (!alreadyCovered) {
             merged.push(fragment);
