@@ -17,18 +17,39 @@
 <body>
     <div class="app-shell">
         <header class="panel panel--header">
-            <p class="eyebrow">GRACE TERMINAL / TRANSLATION STACK</p>
+            <p class="eyebrow">GRACE TERMINAL / GEMINI TRANSLATION STACK</p>
             <h1>Rocky Translator</h1>
-            <p class="tagline">地球語を、読みやすいロッキー風の短文へ変換。</p>
+            <p class="tagline">Geminiで、意味を保ったままロッキー風の短文へ変換。</p>
             <div class="status-row" aria-label="system status">
-                <span class="status-pill">STATIC PWA</span>
-                <span class="status-pill status-pill--input">INPUT: JA</span>
-                <span id="systemStatus" class="status-pill status-pill--ok" data-state="ok">SYSTEM READY</span>
+                <span class="status-pill">PWA CLIENT</span>
+                <span id="modeStatus" class="status-pill status-pill--input">BOOTING</span>
+                <span id="systemStatus" class="status-pill" data-state="warn">BOOTING</span>
             </div>
         </header>
 
         <section id="installHint" class="panel panel--hint" hidden>
             <p>iPhoneでは Safari の共有メニューから「ホーム画面に追加」で単体アプリ化できます。</p>
+        </section>
+
+        <section class="panel panel--settings" aria-labelledby="settingsTitle">
+            <div class="section-head section-head--compact">
+                <div>
+                    <p class="section-kicker">[LINK &gt; SETTINGS]</p>
+                    <h2 id="settingsTitle">接続設定</h2>
+                </div>
+                <p class="section-copy">中継APIがあれば優先使用。なければ、この端末に保存した Gemini APIキーで直接使えます。</p>
+            </div>
+            <div class="settings-grid">
+                <label class="settings-block" for="apiKeyInput">
+                    <span class="settings-label">Gemini API Key</span>
+                    <input id="apiKeyInput" class="text-input" type="password" inputmode="text" autocomplete="off" spellcheck="false" placeholder="AIza...">
+                </label>
+                <div class="settings-actions">
+                    <button id="saveKeyButton" class="action action--small" type="button">キー保存</button>
+                    <button id="clearKeyButton" class="action action--small" type="button">キー削除</button>
+                </div>
+            </div>
+            <p id="settingsHelper" class="helper-text helper-text--tight">APIキーはこの端末のブラウザ保存領域にのみ保存されます。公開リポジトリには入りません。</p>
         </section>
 
         <main class="workspace">
@@ -38,10 +59,10 @@
                         <p class="section-kicker">[GRACE &gt; INPUT]</p>
                         <h2>入力テキスト</h2>
                     </div>
-                    <p class="section-copy">日本語の文をそのまま入力してください。</p>
+                    <p class="section-copy">日本語の文を入力すると、Geminiがロッキー風の日本語に言い換えます。</p>
                 </div>
                 <label class="sr-only" for="inputText">入力テキスト</label>
-                <textarea id="inputText" placeholder="例: グレースは本当にすごい友達です。ありがとう。"></textarea>
+                <textarea id="inputText" placeholder="例: グレースは本当に頼れる友達です。助けてくれてありがとう。"></textarea>
             </section>
 
             <div class="controls" aria-label="translation controls">
@@ -56,10 +77,10 @@
                         <p class="section-kicker section-kicker--amber">[ROCKY &gt; OUTPUT]</p>
                         <h2>変換結果</h2>
                     </div>
-                    <p class="section-copy">短い節に区切るほど、ロッキー感が強くなります。</p>
+                    <p class="section-copy">説明は入れず、変換結果だけを返します。</p>
                 </div>
-                <output id="outputText" class="output-text" aria-live="polite">待機中。入力どうぞ、フレンド。</output>
-                <p id="helperText" class="helper-text">コピーボタンで、そのままメッセージに貼り付けできます。</p>
+                <output id="outputText" class="output-text" aria-live="polite">待機中。Gemini接続、確認中。</output>
+                <p id="helperText" class="helper-text">接続設定を読み込んでいます。</p>
             </section>
         </main>
     </div>

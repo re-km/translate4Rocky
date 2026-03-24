@@ -1,9 +1,10 @@
-﻿const CACHE_NAME = "rocky-translator-v2";
+﻿const CACHE_NAME = "rocky-translator-v5";
 const APP_SHELL = [
     "./",
     "./index.html",
     "./styles.css",
     "./app.js",
+    "./config.json",
     "./manifest.json",
     "./apple-touch-icon.png",
     "./icon-192.png",
@@ -11,6 +12,7 @@ const APP_SHELL = [
 ];
 
 const withScope = (path) => new URL(path, self.registration.scope).toString();
+const configUrl = withScope("./config.json");
 
 self.addEventListener("install", (event) => {
     event.waitUntil((async () => {
@@ -32,6 +34,24 @@ self.addEventListener("activate", (event) => {
     })());
 });
 
+async function networkFirst(request) {
+    const cache = await caches.open(CACHE_NAME);
+
+    try {
+        const response = await fetch(request);
+        if (response.ok) {
+            await cache.put(request, response.clone());
+        }
+        return response;
+    } catch (error) {
+        const cachedResponse = await cache.match(request, { ignoreSearch: true });
+        if (cachedResponse) {
+            return cachedResponse;
+        }
+        throw error;
+    }
+}
+
 self.addEventListener("fetch", (event) => {
     if (event.request.method !== "GET") {
         return;
@@ -40,6 +60,11 @@ self.addEventListener("fetch", (event) => {
     const requestUrl = new URL(event.request.url);
 
     if (requestUrl.origin !== self.location.origin) {
+        return;
+    }
+
+    if (requestUrl.toString() === configUrl) {
+        event.respondWith(networkFirst(event.request));
         return;
     }
 

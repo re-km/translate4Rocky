@@ -1,81 +1,57 @@
-﻿const PHRASE_RULES = [
-    { pattern: /^(こんにちは|こんばんは|おはよう)[。!！]?$/u, replacement: "こんにちは。フレンド。" },
-    { pattern: /^(ありがとう|感謝します|サンキュー)[。!！]?$/u, replacement: "感謝。フレンド。" },
-    { pattern: /^(ごめん|ごめんなさい|すみません|申し訳ない)[。!！]?$/u, replacement: "すまない。サッド。" },
-    { pattern: /^(大丈夫|問題ない)[。!！]?$/u, replacement: "問題、小さい。" },
-    { pattern: /^(はい|了解|オーケー)[。!！]?$/u, replacement: "理解、完了。" },
-    { pattern: /^(いいえ|だめ)[。!！]?$/u, replacement: "ノー。" }
-];
+﻿const DEFAULT_CONFIG = {
+    translateEndpoint: "",
+    requestTimeoutMs: 30000,
+    modeLabel: "GEMINI RELAY",
+    directModel: "gemini-2.5-flash"
+};
 
-const PROPER_NOUN_RULES = [
-    { pattern: /宇宙の藻|アストロファージ/gu, replacement: "アストロファージ" },
-    { pattern: /タウメバ|アメーバ/gu, replacement: "タウメバ" },
-    { pattern: /ゼノナイト/gu, replacement: "ゼノナイト" },
-    { pattern: /地球人|人類|人間たち|人間/gu, replacement: "地球人" },
-    { pattern: /エリダニアン|エリド人|同族/gu, replacement: "エリド人" },
-    { pattern: /グレース/gu, replacement: "グレース" },
-    { pattern: /ロッキー/gu, replacement: "ロッキー" }
-];
+const LOCAL_STORAGE_KEY = "rocky-translator-gemini-api-key";
+const PLACEHOLDER_OUTPUT = "待機中。Gemini接続、確認中。";
+const DEFAULT_HELPER_TEXT = "入力した文章をGeminiがロッキー風に言い換えます。";
+const CONFIG_HELPER_TEXT = "config.json の translateEndpoint を入れるか、この端末に APIキーを保存してください。";
+const HEALTH_FAIL_TEXT = "Gemini中継APIに接続できません。URL・公開状態・CORS を確認してください。";
 
-const EMOTION_RULES = [
-    { pattern: /すごい|素晴らしい|最高|見事|驚異的|天才/gu, replacement: "アメイズ" },
-    { pattern: /嬉しい|楽しい|幸せ|安心|うれしい/gu, replacement: "ハッピー" },
-    { pattern: /悲しい|残念|つらい|辛い|落ち込む/gu, replacement: "サッド" },
-    { pattern: /危険|やばい|まずい|怖い|不安/gu, replacement: "バッド" },
-    { pattern: /安全|平気/gu, replacement: "グッド" }
-];
+const SYSTEM_INSTRUCTION = [
+    "あなたは『プロジェクト・ヘイル・メアリー』のロッキーに着想を得た日本語変換器です。",
+    "ユーザーの日本語を、意味を保ったまま、短く、独特な語順のロッキー風日本語へ変換してください。",
+    "説明や前置きは禁止。変換結果だけを返してください。",
+    "長い自然文にせず、短い句を並べる電文風を優先してください。",
+    "フレンド、理解、イエス、ノー、アメイズ、グッド、バッドのような語を必要な時だけ自然に使ってください。",
+    "毎回同じ語を乱用しないでください。",
+    "原作の具体的な文章を再現したり引用したりせず、新しい表現で返してください。",
+    "固有名詞と意味は維持してください。"
+].join("\n");
 
-const RELATION_RULES = [
-    { pattern: /友達|友人|親友|仲間/gu, replacement: "フレンド" },
-    { pattern: /ありがとう|感謝|サンキュー/gu, replacement: "感謝" },
-    { pattern: /ごめん|ごめんなさい|すみません|申し訳/gu, replacement: "すまない" }
-];
-
-const ACTION_RULES = [
-    { pattern: /分かった|わかった|わかりました|理解した|理解しました|了解/gu, replacement: "理解、完了" },
-    { pattern: /わからない|分からない|わかりません|不明|未知/gu, replacement: "理解、不可" },
-    { pattern: /食べます|食べる|食事|ご飯/gu, replacement: "食べる" },
-    { pattern: /眠い|寝ます|寝る|眠ります|睡眠|休みます|休む/gu, replacement: "スリープ" },
-    { pattern: /助けてください|助けて下さい/gu, replacement: "助けてほしい" },
-    { pattern: /来てください|来て下さい/gu, replacement: "来てほしい" },
-    { pattern: /必要がある|必要です/gu, replacement: "必要" },
-    { pattern: /したいです|したい/gu, replacement: "希望" },
-    { pattern: /できます|できる/gu, replacement: "可能" },
-    { pattern: /急いで|早く/gu, replacement: "早く" }
-];
-
-const FILLER_RULES = [
-    { pattern: /本当に|とても|かなり|すごく|めっちゃ/gu, replacement: "" },
-    { pattern: /ちょっと|少しだけ/gu, replacement: "少し" },
-    { pattern: /という|ですので/gu, replacement: "" }
-];
-
-const PROTECTED_PHRASES = [
-    { raw: "理解、不可", token: "__UNDERSTAND_NO__" },
-    { raw: "理解、完了", token: "__UNDERSTAND_OK__" },
-    { raw: "問題、小さい", token: "__PROBLEM_SMALL__" },
-    { raw: "助けてほしい", token: "__HELP_ME__" },
-    { raw: "来てほしい", token: "__COME_SOON__" }
-];
-
-const PLACEHOLDER_OUTPUT = "待機中。入力どうぞ、フレンド。";
+const FEW_SHOT_EXAMPLES = [
+    "入力: グレースは本当に頼れる友達です。ありがとう。\n出力: グレース、頼れる。フレンド。感謝。",
+    "入力: この装置は危険だから、今すぐ止めてください。\n出力: この装置、バッド。今、止めてほしい。",
+    "入力: 私はまだ分かっていません。でも、やってみます。\n出力: わたし、まだ理解、不可。しかし、試す。"
+].join("\n\n");
 
 const statusMessages = {
-    ready: { label: "SYSTEM READY", state: "ok" },
+    boot: { label: "BOOTING", state: "warn" },
+    checking: { label: "CHECKING BACKEND", state: "warn" },
+    ready: { label: "GEMINI READY", state: "ok" },
+    translating: { label: "TRANSLATING", state: "warn" },
     translated: { label: "TRANSLATION COMPLETE", state: "ok" },
     copied: { label: "OUTPUT COPIED", state: "ok" },
+    saved: { label: "KEY SAVED", state: "ok" },
     cleared: { label: "BUFFER CLEARED", state: "warn" },
-    offline: { label: "OFFLINE ACTIVE", state: "warn" },
+    offline: { label: "OFFLINE", state: "warn" },
     limited: { label: "PWA LIMITED", state: "warn" },
-    error: { label: "INPUT REQUIRED", state: "error" }
+    error: { label: "INPUT REQUIRED", state: "error" },
+    config: { label: "SETUP REQUIRED", state: "error" },
+    failed: { label: "GEMINI ERROR", state: "error" },
+    backendDown: { label: "BACKEND UNREACHABLE", state: "error" }
 };
 
 const elements = {};
 let latestOutput = "";
-
-function applyRules(text, rules) {
-    return rules.reduce((value, rule) => value.replace(rule.pattern, rule.replacement), text);
-}
+let runtimeConfig = { ...DEFAULT_CONFIG };
+let isBusy = false;
+let backendConfigured = false;
+let backendHealthy = false;
+let localApiKey = "";
 
 function normalizeInput(input) {
     return input
@@ -85,186 +61,116 @@ function normalizeInput(input) {
         .trim();
 }
 
-function splitIntoSentences(input) {
-    return input
-        .split(/\n+/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .flatMap((line) => line.match(/[^。!?？！]+[。!?？！]*/gu) || [line]);
-}
+function normalizeEndpoint(endpoint) {
+    const value = String(endpoint || "").trim();
 
-function detectSentenceMode(sentence) {
-    const trimmed = sentence.trim();
-
-    if (!trimmed) {
-        return "statement";
-    }
-
-    const body = trimmed.replace(/[。!?？！]+$/g, "");
-
-    if (/[?？]$/.test(trimmed) || /(ですか|ますか|でしょうか|なの|かな|か)$/.test(body)) {
-        return "question";
-    }
-
-    if (/(ない|ません|ぬ|じゃない|ではない|できない)$/.test(body)) {
-        return "negative";
-    }
-
-    return "statement";
-}
-
-function stripSentenceEnding(text, mode) {
-    let result = text.replace(/[。!?？！]+$/g, "").trim();
-
-    if (mode === "question") {
-        result = result.replace(/(ですか|ますか|でしょうか|でしたか|かな|なの|か)$/gu, "");
-    }
-
-    result = result.replace(/(です|でした|である|だ)$/gu, "");
-    return result.trim();
-}
-
-function normalizeRequests(text) {
-    return text
-        .replace(/助けてください|助けて下さい/gu, "助けてほしい")
-        .replace(/来てください|来て下さい/gu, "来てほしい")
-        .replace(/([一-龯ぁ-んァ-ヴー々〆ヵヶA-Za-z0-9ー]+?)してください/gu, "$1してほしい")
-        .replace(/([一-龯ぁ-んァ-ヴー々〆ヵヶA-Za-z0-9ー]+?)下さい/gu, "$1してほしい");
-}
-
-function telegraphize(text) {
-    return text
-        .replace(/(私は|わたしは|僕は|ぼくは|俺は)/gu, "わたし、")
-        .replace(/(あなたは|君は|きみは)/gu, "あなた、")
-        .replace(/(だから|なので|ので|から)/gu, "。理由、")
-        .replace(/(そして|それから|それで|次に)/gu, "。次、")
-        .replace(/(でも|しかし|だけど|けれど|ですが)/gu, "。しかし、")
-        .replace(/([一-龯ぁ-んァ-ヴー々〆ヵヶA-Za-z0-9ー]+)(は|が|を|に|へ|と|で|も)/gu, "$1、")
-        .replace(/(もう)/gu, "今")
-        .replace(/(まだ)/gu, "まだ")
-        .replace(/(です|ます|でした|ました|である|だろう|でしょう|する)$/gu, "")
-        .replace(/[,:：]/g, "、");
-}
-
-function addRockyCadence(text) {
-    return text
-        .replace(/(アメイズ|ハッピー|サッド|バッド|グッド)(フレンド|感謝|すまない)/gu, "$1、$2")
-        .replace(/(グレース|ロッキー|地球人|エリド人)(アメイズ|ハッピー|サッド|バッド|グッド|フレンド)/gu, "$1、$2")
-        .replace(/(フレンド)(感謝|すまない|アメイズ|ハッピー|サッド|バッド|グッド)/gu, "$1、$2")
-        .replace(/(バッド)(?:、)?(バッド)/gu, "$1")
-        .replace(/(アメイズ)(?:、)?(アメイズ)/gu, "$1")
-        .replace(/(グッド)(?:、)?(グッド)/gu, "$1")
-        .replace(/(理解、完了)(?:、)?(理解、完了)/gu, "$1")
-        .replace(/(理解、不可)(?:、)?(理解、不可)/gu, "$1")
-        .replace(/(今|今日|明日|まだ|早く)(来てほしい|助けてほしい|スリープ|理解、不可|理解、完了|必要|可能|希望)/gu, "$1、$2");
-}
-
-function protectPhrases(text) {
-    return PROTECTED_PHRASES.reduce(
-        (value, phrase) => value.replaceAll(phrase.raw, phrase.token),
-        text
-    );
-}
-
-function restorePhrases(text) {
-    return PROTECTED_PHRASES.reduce(
-        (value, phrase) => value.replaceAll(phrase.token, phrase.raw),
-        text
-    );
-}
-
-function cleanupOutput(text) {
-    return text
-        .replace(/[ 　]+/g, " ")
-        .replace(/。+/g, "。")
-        .replace(/、+/g, "、")
-        .replace(/。(?=、)/g, "")
-        .replace(/^、|、$/g, "")
-        .replace(/^[。\s]+|[。\s]+$/g, "")
-        .trim();
-}
-
-function explodeIntoRockyPhrases(text) {
-    const protectedText = protectPhrases(text);
-    const parts = protectedText
-        .replace(/。+/g, "。")
-        .split(/[。]/)
-        .flatMap((part) => part.split(/[、]/))
-        .map((part) => part.trim())
-        .filter(Boolean);
-
-    return restorePhrases(parts.join("。"));
-}
-
-function finalizeSentence(text, mode) {
-    let result = cleanupOutput(addRockyCadence(text));
-
-    if (!result) {
-        return mode === "question" ? "質問？" : "解析、不可。";
-    }
-
-    result = cleanupOutput(explodeIntoRockyPhrases(result));
-
-    if (mode === "question") {
-        return `${result}。質問？`;
-    }
-
-    if (mode === "negative") {
-        if (/(理解、不可|ノー|不可|バッド)/.test(result)) {
-            return `${result}。`;
-        }
-        return `${result}。ノー。`;
-    }
-
-    return `${result}。`;
-}
-
-function transformSentence(sentence) {
-    const trimmed = sentence.trim();
-
-    if (!trimmed) {
+    if (!value) {
         return "";
     }
 
-    const directRule = PHRASE_RULES.find((rule) => rule.pattern.test(trimmed));
-
-    if (directRule) {
-        return directRule.replacement;
+    if (!/^https?:\/\//i.test(value)) {
+        return value;
     }
 
-    const mode = detectSentenceMode(trimmed);
-    let text = stripSentenceEnding(trimmed, mode);
+    if (/\/translate\/?$/i.test(value)) {
+        return value.replace(/\/+$/g, "");
+    }
 
-    text = normalizeRequests(text);
-    text = applyRules(text, PROPER_NOUN_RULES);
-    text = applyRules(text, EMOTION_RULES);
-    text = applyRules(text, RELATION_RULES);
-    text = applyRules(text, ACTION_RULES);
-    text = applyRules(text, FILLER_RULES);
-    text = telegraphize(text);
-
-    return finalizeSentence(text, mode);
+    return value.replace(/\/+$/g, "") + "/translate";
 }
 
-function translateToRocky(input) {
-    const normalized = normalizeInput(input);
-
-    if (!normalized) {
-        return {
-            state: "error",
-            text: "入力、必要。"
-        };
+function deriveHealthEndpoint(translateEndpoint) {
+    if (!translateEndpoint) {
+        return "";
     }
 
-    const translated = splitIntoSentences(normalized)
-        .map(transformSentence)
-        .filter(Boolean)
-        .join("\n");
+    return translateEndpoint.replace(/\/translate\/?$/i, "/health");
+}
 
+function buildDirectGeminiEndpoint() {
+    return `https://generativelanguage.googleapis.com/v1beta/models/${runtimeConfig.directModel}:generateContent`;
+}
+
+function buildGeminiBody(text) {
     return {
-        state: "translated",
-        text: translated || "解析、不可。"
+        system_instruction: {
+            parts: [
+                { text: SYSTEM_INSTRUCTION }
+            ]
+        },
+        contents: [
+            {
+                role: "user",
+                parts: [
+                    {
+                        text: [
+                            FEW_SHOT_EXAMPLES,
+                            "入力: " + text,
+                            "出力:"
+                        ].join("\n\n")
+                    }
+                ]
+            }
+        ],
+        generationConfig: {
+            temperature: 0.9,
+            topP: 0.95,
+            maxOutputTokens: 256,
+            responseMimeType: "text/plain",
+            thinkingConfig: {
+                thinkingBudget: 0
+            }
+        }
     };
+}
+
+function readGeminiText(data) {
+    return (data.candidates || [])
+        .flatMap((candidate) => candidate.content?.parts || [])
+        .map((part) => part.text || "")
+        .join("\n")
+        .trim();
+}
+
+function loadLocalApiKey() {
+    try {
+        localApiKey = localStorage.getItem(LOCAL_STORAGE_KEY) || "";
+    } catch (error) {
+        localApiKey = "";
+    }
+}
+
+function saveLocalApiKey(value) {
+    localApiKey = String(value || "").trim();
+    try {
+        if (localApiKey) {
+            localStorage.setItem(LOCAL_STORAGE_KEY, localApiKey);
+        } else {
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
+        }
+    } catch (error) {
+        localApiKey = "";
+    }
+}
+
+function hasLocalApiKey() {
+    return Boolean(localApiKey);
+}
+
+function getActiveMode() {
+    if (backendConfigured && backendHealthy) {
+        return "backend";
+    }
+
+    if (hasLocalApiKey()) {
+        return "direct";
+    }
+
+    if (backendConfigured) {
+        return "backend-down";
+    }
+
+    return "unconfigured";
 }
 
 function setSystemStatus(statusKey) {
@@ -277,30 +183,343 @@ function renderResult(text, state) {
     const isPlaceholder = state === "placeholder";
     elements.outputText.textContent = text;
     elements.outputText.dataset.state = isPlaceholder ? "placeholder" : "filled";
-    elements.copyButton.disabled = isPlaceholder || !latestOutput;
+    elements.copyButton.disabled = isPlaceholder || !latestOutput || isBusy;
 }
 
 function refreshControls() {
-    elements.translateButton.disabled = !elements.inputText.value.trim();
-    elements.copyButton.disabled = !latestOutput;
+    const canTranslate = !isBusy && Boolean(elements.inputText.value.trim()) && (getActiveMode() === "backend" || getActiveMode() === "direct");
+    elements.translateButton.disabled = !canTranslate;
+    elements.clearButton.disabled = isBusy;
+    elements.copyButton.disabled = isBusy || !latestOutput;
+    elements.saveKeyButton.disabled = isBusy || !elements.apiKeyInput.value.trim();
+    elements.clearKeyButton.disabled = isBusy || !hasLocalApiKey();
 }
 
-function handleTranslate() {
-    const result = translateToRocky(elements.inputText.value);
+function updateModeBadge() {
+    const activeMode = getActiveMode();
+
+    if (activeMode === "backend") {
+        elements.modeStatus.textContent = runtimeConfig.modeLabel || DEFAULT_CONFIG.modeLabel;
+        return;
+    }
+
+    if (activeMode === "direct") {
+        elements.modeStatus.textContent = "LOCAL API KEY";
+        return;
+    }
+
+    if (activeMode === "backend-down") {
+        elements.modeStatus.textContent = "BACKEND DOWN";
+        return;
+    }
+
+    elements.modeStatus.textContent = "SETUP REQUIRED";
+}
+
+function setHelperText(text) {
+    elements.helperText.textContent = text;
+}
+
+function updateSettingsHelper(text) {
+    elements.settingsHelper.textContent = text;
+}
+function syncIdleState() {
+    if (isBusy) {
+        return;
+    }
+
+    updateModeBadge();
+
+    if (!navigator.onLine) {
+        setSystemStatus("offline");
+        setHelperText("Gemini変換はオンライン時のみ利用できます。");
+        refreshControls();
+        return;
+    }
+
+    const activeMode = getActiveMode();
+
+    if (activeMode === "backend") {
+        setSystemStatus(latestOutput ? "translated" : "ready");
+        setHelperText(latestOutput ? "コピーボタンで、そのままメッセージに貼り付けできます。" : DEFAULT_HELPER_TEXT);
+        updateSettingsHelper("中継APIが有効です。必要ならこの端末用APIキーも保存できます。");
+        refreshControls();
+        return;
+    }
+
+    if (activeMode === "direct") {
+        setSystemStatus(latestOutput ? "translated" : "ready");
+        setHelperText(latestOutput ? "コピーボタンで、そのままメッセージに貼り付けできます。" : "この端末に保存した Gemini APIキーで直接変換します。");
+        updateSettingsHelper("APIキーはこの端末のブラウザ保存領域にのみ保存されています。必要なら削除できます。");
+        refreshControls();
+        return;
+    }
+
+    if (activeMode === "backend-down") {
+        setSystemStatus("backendDown");
+        setHelperText(HEALTH_FAIL_TEXT);
+        updateSettingsHelper(hasLocalApiKey() ? "中継APIは落ちていますが、保存済みAPIキーで直接利用できます。" : "中継APIが使えません。保存済みAPIキーがあれば直接利用に切り替えられます。");
+        if (!latestOutput) {
+            renderResult("Gemini中継APIに接続できません。Cloudflare Worker のデプロイ状況と config.json のURLを確認してください。", "filled");
+        }
+        refreshControls();
+        return;
+    }
+
+    setSystemStatus("config");
+    setHelperText(CONFIG_HELPER_TEXT);
+    updateSettingsHelper("中継APIの URL を config.json に設定するか、この端末にGemini APIキーを保存してください。");
+    if (!latestOutput) {
+        renderResult("まだ接続設定がありません。README の手順で backend をデプロイするか、この端末に APIキーを保存してください。", "filled");
+    }
+    refreshControls();
+}
+
+async function loadConfig() {
+    try {
+        const response = await fetch("./config.json", { cache: "no-store" });
+        if (!response.ok) {
+            return;
+        }
+
+        const fileConfig = await response.json();
+        runtimeConfig = { ...DEFAULT_CONFIG, ...fileConfig };
+        runtimeConfig.translateEndpoint = normalizeEndpoint(runtimeConfig.translateEndpoint);
+        runtimeConfig.requestTimeoutMs = Number(runtimeConfig.requestTimeoutMs) || DEFAULT_CONFIG.requestTimeoutMs;
+        runtimeConfig.modeLabel = String(runtimeConfig.modeLabel || DEFAULT_CONFIG.modeLabel).trim();
+        runtimeConfig.directModel = String(runtimeConfig.directModel || DEFAULT_CONFIG.directModel).trim();
+        backendConfigured = Boolean(runtimeConfig.translateEndpoint);
+    } catch (error) {
+        runtimeConfig = { ...DEFAULT_CONFIG };
+        backendConfigured = false;
+        backendHealthy = false;
+    }
+}
+
+async function checkBackendHealth() {
+    if (!backendConfigured || !navigator.onLine) {
+        backendHealthy = false;
+        return false;
+    }
+
+    const healthEndpoint = deriveHealthEndpoint(runtimeConfig.translateEndpoint);
+    if (!healthEndpoint) {
+        backendHealthy = false;
+        return false;
+    }
+
+    setSystemStatus("checking");
+    setHelperText("Gemini中継APIの接続を確認しています。");
+
+    try {
+        const response = await fetch(healthEndpoint, {
+            method: "GET",
+            cache: "no-store"
+        });
+        backendHealthy = response.ok;
+        return backendHealthy;
+    } catch (error) {
+        backendHealthy = false;
+        return false;
+    }
+}
+
+async function requestViaBackend(text) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), runtimeConfig.requestTimeoutMs);
+
+    try {
+        const response = await fetch(runtimeConfig.translateEndpoint, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ text }),
+            signal: controller.signal
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            const message = typeof data.error === "string" && data.error
+                ? data.error
+                : "Gemini変換に失敗しました。中継APIの設定を確認してください。";
+            return { state: "failed", text: message };
+        }
+
+        backendHealthy = true;
+
+        const translatedText = typeof data.text === "string" ? data.text.trim() : "";
+
+        if (!translatedText) {
+            return {
+                state: "failed",
+                text: "Gemini から変換結果を取得できませんでした。"
+            };
+        }
+
+        return {
+            state: "translated",
+            text: translatedText
+        };
+    } catch (error) {
+        backendHealthy = false;
+
+        if (error.name === "AbortError") {
+            return {
+                state: "failed",
+                text: "Gemini の応答がタイムアウトしました。しばらくしてから再試行してください。"
+            };
+        }
+
+        return {
+            state: "failed",
+            text: "Gemini中継APIに接続できませんでした。URL と CORS 設定を確認してください。"
+        };
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+async function requestDirectGemini(text) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), runtimeConfig.requestTimeoutMs);
+
+    try {
+        const response = await fetch(buildDirectGeminiEndpoint(), {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-goog-api-key": localApiKey
+            },
+            body: JSON.stringify(buildGeminiBody(text)),
+            signal: controller.signal
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            const message = data?.error?.message || "Gemini API への直接接続に失敗しました。APIキーを確認してください。";
+            return { state: "failed", text: message };
+        }
+
+        const translatedText = readGeminiText(data);
+
+        if (!translatedText) {
+            return {
+                state: "failed",
+                text: "Gemini から変換結果を取得できませんでした。"
+            };
+        }
+
+        return {
+            state: "translated",
+            text: translatedText
+        };
+    } catch (error) {
+        if (error.name === "AbortError") {
+            return {
+                state: "failed",
+                text: "Gemini の応答がタイムアウトしました。しばらくしてから再試行してください。"
+            };
+        }
+
+        return {
+            state: "failed",
+            text: "Gemini API へ直接接続できませんでした。APIキーと通信状態を確認してください。"
+        };
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+async function translateToRocky(input) {
+    const normalized = normalizeInput(input);
+
+    if (!normalized) {
+        return {
+            state: "error",
+            text: "入力、必要。"
+        };
+    }
+
+    if (!navigator.onLine) {
+        return {
+            state: "offline",
+            text: "オフラインです。Gemini変換はオンライン時のみ利用できます。"
+        };
+    }
+
+    const activeMode = getActiveMode();
+
+    if (activeMode === "backend") {
+        return requestViaBackend(normalized);
+    }
+
+    if (activeMode === "direct") {
+        return requestDirectGemini(normalized);
+    }
+
+    if (activeMode === "backend-down") {
+        return {
+            state: "failed",
+            text: "中継APIに接続できません。保存済みAPIキーがある場合は直接モードを利用できます。"
+        };
+    }
+
+    return {
+        state: "config",
+        text: "接続設定がありません。config.json の translateEndpoint を設定するか、APIキーを保存してください。"
+    };
+}
+
+async function handleTranslate() {
+    if (isBusy) {
+        return;
+    }
+
+    isBusy = true;
+    latestOutput = "";
+    renderResult("Gemini に問い合わせ中。少し待つ、フレンド。", "filled");
+    setSystemStatus("translating");
+    setHelperText("ロッキー風の自然な言い換えを生成しています。");
+    refreshControls();
+
+    const result = await translateToRocky(elements.inputText.value);
+
+    isBusy = false;
     latestOutput = result.state === "translated" ? result.text : "";
-    elements.helperText.textContent = "コピーボタンで、そのままメッセージに貼り付けできます。";
-    renderResult(result.text, result.state);
-    setSystemStatus(result.state);
+    renderResult(result.text, "filled");
+
+    if (result.state === "translated") {
+        setSystemStatus("translated");
+        setHelperText("コピーボタンで、そのままメッセージに貼り付けできます。");
+    } else if (result.state === "config") {
+        setSystemStatus("config");
+        setHelperText(CONFIG_HELPER_TEXT);
+    } else if (result.state === "offline") {
+        setSystemStatus("offline");
+        setHelperText("通信が戻ったら、もう一度変換してください。");
+    } else if (result.state === "error") {
+        setSystemStatus("error");
+        setHelperText("入力欄に日本語を入れてから変換してください。");
+    } else {
+        setSystemStatus("failed");
+        setHelperText("中継APIの URL・Gemini APIキー・通信状態を確認してください。");
+    }
+
     refreshControls();
 }
 
 function handleClear() {
+    if (isBusy) {
+        return;
+    }
+
     elements.inputText.value = "";
     latestOutput = "";
-    elements.helperText.textContent = "コピーボタンで、そのままメッセージに貼り付けできます。";
     renderResult(PLACEHOLDER_OUTPUT, "placeholder");
     setSystemStatus("cleared");
-    refreshControls();
+    syncIdleState();
     elements.inputText.focus();
 }
 
@@ -322,18 +541,40 @@ async function copyText(text) {
 }
 
 async function handleCopy() {
-    if (!latestOutput) {
+    if (!latestOutput || isBusy) {
         return;
     }
 
     try {
         await copyText(latestOutput);
         setSystemStatus("copied");
-        elements.helperText.textContent = "コピー完了。メッセージやメモにそのまま貼り付けできます。";
+        setHelperText("コピー完了。メッセージやメモにそのまま貼り付けできます。");
     } catch (error) {
-        setSystemStatus("limited");
-        elements.helperText.textContent = "コピーできませんでした。長押しで手動コピーしてください。";
+        setSystemStatus("failed");
+        setHelperText("コピーできませんでした。長押しで手動コピーしてください。");
     }
+}
+function handleSaveKey() {
+    const value = elements.apiKeyInput.value.trim();
+
+    if (!value) {
+        updateSettingsHelper("Gemini APIキーを入力してから保存してください。");
+        refreshControls();
+        return;
+    }
+
+    saveLocalApiKey(value);
+    elements.apiKeyInput.value = value;
+    setSystemStatus("saved");
+    updateSettingsHelper("APIキーをこの端末に保存しました。config.json の中継APIより後ろにある予備回線としても使えます。");
+    syncIdleState();
+}
+
+function handleClearKey() {
+    saveLocalApiKey("");
+    elements.apiKeyInput.value = "";
+    updateSettingsHelper("この端末から APIキーを削除しました。");
+    syncIdleState();
 }
 
 function shouldShowInstallHint() {
@@ -350,56 +591,52 @@ function updateInstallHint() {
 
 async function registerServiceWorker() {
     if (!("serviceWorker" in navigator) || !window.isSecureContext) {
-        setSystemStatus("limited");
         return;
     }
 
     try {
         await navigator.serviceWorker.register("./sw.js");
-        setSystemStatus(navigator.onLine ? "ready" : "offline");
     } catch (error) {
         setSystemStatus("limited");
     }
 }
 
-function handleConnectivityChange() {
-    if (!navigator.onLine) {
-        setSystemStatus("offline");
-        return;
+async function handleConnectivityChange() {
+    if (navigator.onLine && backendConfigured) {
+        await checkBackendHealth();
     }
-
-    if (latestOutput) {
-        setSystemStatus("translated");
-        return;
-    }
-
-    setSystemStatus("ready");
+    syncIdleState();
 }
 
-function init() {
+async function init() {
     elements.inputText = document.getElementById("inputText");
     elements.outputText = document.getElementById("outputText");
     elements.systemStatus = document.getElementById("systemStatus");
+    elements.modeStatus = document.getElementById("modeStatus");
     elements.helperText = document.getElementById("helperText");
+    elements.settingsHelper = document.getElementById("settingsHelper");
     elements.installHint = document.getElementById("installHint");
     elements.translateButton = document.getElementById("translateButton");
     elements.clearButton = document.getElementById("clearButton");
     elements.copyButton = document.getElementById("copyButton");
+    elements.apiKeyInput = document.getElementById("apiKeyInput");
+    elements.saveKeyButton = document.getElementById("saveKeyButton");
+    elements.clearKeyButton = document.getElementById("clearKeyButton");
 
     renderResult(PLACEHOLDER_OUTPUT, "placeholder");
+    setSystemStatus("boot");
     updateInstallHint();
-    refreshControls();
+
+    loadLocalApiKey();
+    elements.apiKeyInput.value = localApiKey;
 
     elements.translateButton.addEventListener("click", handleTranslate);
     elements.clearButton.addEventListener("click", handleClear);
     elements.copyButton.addEventListener("click", handleCopy);
-    elements.inputText.addEventListener("input", () => {
-        if (!elements.inputText.value.trim() && !latestOutput) {
-            renderResult(PLACEHOLDER_OUTPUT, "placeholder");
-            setSystemStatus("ready");
-        }
-        refreshControls();
-    });
+    elements.saveKeyButton.addEventListener("click", handleSaveKey);
+    elements.clearKeyButton.addEventListener("click", handleClearKey);
+    elements.inputText.addEventListener("input", refreshControls);
+    elements.apiKeyInput.addEventListener("input", refreshControls);
     elements.inputText.addEventListener("keydown", (event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
             handleTranslate();
@@ -409,7 +646,18 @@ function init() {
     window.addEventListener("online", handleConnectivityChange);
     window.addEventListener("offline", handleConnectivityChange);
 
-    registerServiceWorker();
+    await loadConfig();
+    await registerServiceWorker();
+
+    if (backendConfigured && navigator.onLine) {
+        await checkBackendHealth();
+    }
+
+    syncIdleState();
 }
 
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", () => {
+    init().catch(() => {
+        setSystemStatus("failed");
+    });
+});

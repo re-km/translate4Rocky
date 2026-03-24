@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Rocky Translator",
   "short_name": "RockyTalk",
-  "description": "日本語をプロジェクト・ヘイル・メアリーのロッキー風に変換するオフライン対応PWA。",
+  "description": "Geminiで日本語をロッキー風に変換するPWA。",
   "lang": "ja",
   "start_url": "./",
   "scope": "./",

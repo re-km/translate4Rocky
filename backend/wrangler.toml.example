@@ -1,0 +1,9 @@
+﻿name = "rocky-translator-gemini"
+main = "cloudflare-worker.js"
+compatibility_date = "2026-03-24"
+
+# Deploy after copying this file to backend/wrangler.toml and setting secrets.
+# Required secret:
+#   wrangler secret put GEMINI_API_KEY
+# Optional secret/var:
+#   ALLOWED_ORIGIN = "https://re-km.github.io"

@@ -1,0 +1,5 @@
+﻿{
+  "translateEndpoint": "",
+  "requestTimeoutMs": 30000,
+  "modeLabel": "GEMINI RELAY"
+}
