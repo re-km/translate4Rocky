@@ -13,9 +13,12 @@ const HEALTH_FAIL_TEXT = "Gemini中継APIに接続できません。URL・公開
 
 const SYSTEM_INSTRUCTION = [
     "あなたは『プロジェクト・ヘイル・メアリー』のロッキーに着想を得た日本語変換器です。",
-    "ユーザーの日本語を、意味を保ったまま、短く、独特な語順のロッキー風日本語へ変換してください。",
+    "ユーザーの日本語を、意味を保ったまま、短く、独特な語順のロッキー風日本語に変換してください。",
     "説明や前置きは禁止。変換結果だけを返してください。",
-    "長い自然文にせず、短い句を並べる電文風を優先してください。",
+    "単なる同義語への言い換えや要約で終わらせず、2個から4個ほどの短い句に割って電文風にしてください。",
+    "疑問、否定、困惑、悲しさは落とさずに残してください。",
+    "『どうして』『なぜ』『理由がわからない』『理解できない』『ほしくない』のような語は重要です。必要なら『疑問？』『理解、不可』『サッド』を使ってください。",
+    "『無理』のような一般的すぎる言い換えは避け、『理解、不可』のようなロッキーらしい言い方を優先してください。",
     "フレンド、理解、イエス、ノー、アメイズ、グッド、バッドのような語を必要な時だけ自然に使ってください。",
     "毎回同じ語を乱用しないでください。",
     "原作の具体的な文章を再現したり引用したりせず、新しい表現で返してください。",
@@ -24,6 +27,7 @@ const SYSTEM_INSTRUCTION = [
 
 const FEW_SHOT_EXAMPLES = [
     "入力: グレースは本当に頼れる友達です。ありがとう。\n出力: グレース、頼れる。フレンド。感謝。",
+    "入力: どうしてほしくないのか理解できない。\n出力: 欲しくない。疑問？ 理解、不可。サッド。",
     "入力: この装置は危険だから、今すぐ止めてください。\n出力: この装置、バッド。今、止めてほしい。",
     "入力: 私はまだ分かっていません。でも、やってみます。\n出力: わたし、まだ理解、不可。しかし、試す。"
 ].join("\n\n");
@@ -130,6 +134,128 @@ function readGeminiText(data) {
         .map((part) => part.text || "")
         .join("\n")
         .trim();
+}
+
+function canonicalizeRockyFragment(fragment) {
+    const normalized = String(fragment || "")
+        .trim()
+        .replace(/^[。、「」\s]+|[。、「」\s]+$/g, "")
+        .replace(/理解[、 ]?(?:無理|不能)/g, "理解、不可")
+        .replace(/(?:わからない|分からない|理解できない|理解出来ない|不明|無理)/g, "理解、不可")
+        .replace(/ほしくない/g, "欲しくない");
+
+    if (!normalized) {
+        return "";
+    }
+
+    if (/理解、?不可/.test(normalized)) {
+        return "理解、不可";
+    }
+
+    if (/^(?:疑問|疑問？|どうして|なぜ|なんで)$/.test(normalized)) {
+        return "疑問？";
+    }
+
+    if (/^(?:欲しくない|ほしくない)$/.test(normalized)) {
+        return "欲しくない";
+    }
+
+    if (/^(?:サッド|悲しい|つらい|辛い)$/.test(normalized)) {
+        return "サッド";
+    }
+
+    return normalized;
+}
+
+function buildSemanticFragments(sourceText) {
+    const fragments = [];
+    const add = (fragment) => {
+        if (!fragments.includes(fragment)) {
+            fragments.push(fragment);
+        }
+    };
+
+    if (/(欲しくない|ほしくない)/.test(sourceText)) {
+        add("欲しくない");
+    }
+
+    if (/(どうして|なぜ|なんで|理由)/.test(sourceText)) {
+        add("疑問？");
+    }
+
+    if (/(理解できない|理解出来ない|わからない|分からない|不明)/.test(sourceText)) {
+        add("理解、不可");
+    }
+
+    if (/(欲しくない|ほしくない|悲しい|つらい|辛い|困る|ショック|戸惑|理解できない|理解出来ない|わからない|分からない)/.test(sourceText)) {
+        add("サッド");
+    }
+
+    return fragments;
+}
+
+function splitRockyFragments(text) {
+    return String(text || "")
+        .replace(/\n+/g, "。")
+        .replace(/、(?=(疑問？|理解、不可|サッド|バッド|グッド|アメイズ|フレンド|ノー|イエス|欲しくない))/g, "。")
+        .split(/[。]+/)
+        .map(canonicalizeRockyFragment)
+        .filter(Boolean);
+}
+
+function formatRockyFragments(fragments) {
+    return fragments.reduce((result, fragment, index) => {
+        const value = String(fragment || "").trim();
+        if (!value) {
+            return result;
+        }
+
+        const isLast = index === fragments.length - 1;
+        const endsWithQuestion = /[？?]$/.test(value);
+        const endsWithPeriod = /[。．.]$/.test(value);
+
+        if (isLast) {
+            if (endsWithQuestion || endsWithPeriod) {
+                return result + value;
+            }
+            return result + value + "。";
+        }
+
+        if (endsWithQuestion) {
+            return result + value + " ";
+        }
+
+        if (endsWithPeriod) {
+            return result + value;
+        }
+
+        return result + value + "。";
+    }, "").trim();
+}
+
+function polishRockyOutput(sourceText, outputText) {
+    const semanticFragments = buildSemanticFragments(sourceText);
+    const modelFragments = splitRockyFragments(outputText);
+    const merged = [...semanticFragments];
+
+    for (const fragment of modelFragments) {
+        if (!merged.includes(fragment)) {
+            merged.push(fragment);
+        }
+    }
+
+    const cleaned = merged.filter((fragment, index, list) => {
+        if (fragment === "理解" && list.includes("理解、不可")) {
+            return false;
+        }
+        return true;
+    });
+
+    if (!cleaned.length) {
+        return String(outputText || "").trim();
+    }
+
+    return formatRockyFragments(cleaned);
 }
 
 function loadLocalApiKey() {
@@ -360,7 +486,7 @@ async function requestViaBackend(text) {
 
         return {
             state: "translated",
-            text: translatedText
+            text: polishRockyOutput(text, translatedText)
         };
     } catch (error) {
         backendHealthy = false;
@@ -413,7 +539,7 @@ async function requestDirectGemini(text) {
 
         return {
             state: "translated",
-            text: translatedText
+            text: polishRockyOutput(text, translatedText)
         };
     } catch (error) {
         if (error.name === "AbortError") {
@@ -661,3 +787,5 @@ document.addEventListener("DOMContentLoaded", () => {
         setSystemStatus("failed");
     });
 });
+
+
