@@ -17,7 +17,7 @@ const SYSTEM_INSTRUCTION = [
     "説明や前置きは禁止。変換結果だけを返してください。",
     "単なる同義語への言い換えや要約で終わらせず、2個から4個ほどの短い句に割って電文風にしてください。",
     "疑問、否定、困惑、悲しさは落とさずに残してください。",
-    "『どうして』『なぜ』『理由がわからない』『理解できない』『ほしくない』のような語は重要です。必要なら『疑問？』『理解、不可』『サッド』を使ってください。",
+    "『どうして』『なぜ』『理由がわからない』『理解できない』『ほしくない』のような語は重要です。必要なら『質問？』『理解、不可』『悲しい』を使ってください。",
     "『無理』のような一般的すぎる言い換えは避け、『理解、不可』のようなロッキーらしい言い方を優先してください。",
     "フレンド、理解、イエス、ノー、アメイズ、良い、悪いのような語を必要な時だけ自然に使ってください。",
     "毎回同じ語を乱用しないでください。",
@@ -27,8 +27,8 @@ const SYSTEM_INSTRUCTION = [
 
 const FEW_SHOT_EXAMPLES = [
     "入力: グレースは本当に頼れる友達です。ありがとう。\n出力: グレース、頼れる。フレンド。感謝。",
-    "入力: どうしてほしくないのか理解できない。\n出力: なぜ、欲しくない？ 理解、不可。サッド。",
-    "入力: なぜ持っていないのかわからない。\n出力: なぜ持っていない、疑問？ 理解、不可。",
+    "入力: どうしてほしくないのか理解できない。\n出力: なぜ、欲しくない？ 理解、不可。悲しい。",
+    "入力: なぜ持っていないのかわからない。\n出力: なぜ持っていない、質問？ 理解、不可。",
     "入力: 翻訳できました。\n出力: 翻訳、完了。良い。",
     "入力: この装置は危険だから、今すぐ止めてください。\n出力: この装置、悪い。今、止めてほしい。",
     "入力: 私はまだ分かっていません。でも、やってみます。\n出力: わたし、まだ理解、不可。しかし、試す。"
@@ -147,6 +147,8 @@ function canonicalizeRockyFragment(fragment) {
         .replace(/ほしくない/g, "欲しくない")
         .replace(/グッド/g, "良い")
         .replace(/バッド/g, "悪い")
+        .replace(/疑問？?/g, "質問？")
+        .replace(/サッド/g, "悲しい")
         .replace(/翻訳できました|翻訳できた|翻訳しました|翻訳した/g, "翻訳、完了");
 
     if (!normalized) {
@@ -157,8 +159,8 @@ function canonicalizeRockyFragment(fragment) {
         return "理解、不可";
     }
 
-    if (/^(?:疑問|疑問？)$/.test(normalized)) {
-        return "疑問？";
+    if (/^(?:疑問|疑問？|質問|質問？)$/.test(normalized)) {
+        return "質問？";
     }
 
     if (/^(?:どうして|なぜ|なんで)$/.test(normalized)) {
@@ -182,7 +184,7 @@ function canonicalizeRockyFragment(fragment) {
     }
 
     if (/^(?:サッド|悲しい|つらい|辛い)$/.test(normalized)) {
-        return "サッド";
+        return "悲しい";
     }
 
     return normalized;
@@ -207,7 +209,7 @@ function extractWhyPhrase(sourceText) {
         return "なぜ、欲しくない？";
     }
 
-    return `なぜ${clause}、疑問？`;
+    return `なぜ${clause}、質問？`;
 }
 
 function buildSemanticFragments(sourceText) {
@@ -228,7 +230,7 @@ function buildSemanticFragments(sourceText) {
     }
 
     if (!whyPhrase && /(どうして|なぜ|なんで|理由|のか)/.test(sourceText)) {
-        add("疑問？");
+        add("質問？");
     }
 
     if (/(理解できない|理解出来ない|わからない|分からない|不明)/.test(sourceText)) {
@@ -241,7 +243,7 @@ function buildSemanticFragments(sourceText) {
     }
 
     if (/(欲しくない|ほしくない|悲しい|つらい|辛い|困る|ショック|戸惑)/.test(sourceText)) {
-        add("サッド");
+        add("悲しい");
     }
 
     return fragments;
@@ -250,7 +252,7 @@ function buildSemanticFragments(sourceText) {
 function splitRockyFragments(text) {
     return String(text || "")
         .replace(/\n+/g, "\u3002")
-        .replace(/\u3001(?=(\u7591\u554f\uff1f|\u7406\u89e3\u3001\u4e0d\u53ef|\u30b5\u30c3\u30c9|\u30d0\u30c3\u30c9|\u30b0\u30c3\u30c9|\u60aa\u3044|\u826f\u3044|\u30a2\u30e1\u30a4\u30ba|\u30d5\u30ec\u30f3\u30c9|\u30ce\u30fc|\u30a4\u30a8\u30b9|\u6b32\u3057\u304f\u306a\u3044|\u7ffb\u8a33\u3001\u5b8c\u4e86))/g, "\u3002")
+        .replace(/\u3001(?=(\u7591\u554f\uff1f|\u8cea\u554f\uff1f|\u7406\u89e3\u3001\u4e0d\u53ef|\u30b5\u30c3\u30c9|\u60b2\u3057\u3044|\u30d0\u30c3\u30c9|\u30b0\u30c3\u30c9|\u60aa\u3044|\u826f\u3044|\u30a2\u30e1\u30a4\u30ba|\u30d5\u30ec\u30f3\u30c9|\u30ce\u30fc|\u30a4\u30a8\u30b9|\u6b32\u3057\u304f\u306a\u3044|\u7ffb\u8a33\u3001\u5b8c\u4e86))/g, "\u3002")
         .split(/[\u3002]+/)
         .map(canonicalizeRockyFragment)
         .filter(Boolean);
@@ -274,7 +276,7 @@ function shouldDropModelFragment(fragment, sourceText, semanticFragments) {
         return true;
     }
 
-    if (fragment === "\u30ce\u30fc" && semanticFragments.some((value) => /^(?:\u6b32\u3057\u304f\u306a\u3044|\u7406\u89e3\u3001\u4e0d\u53ef|\u30b5\u30c3\u30c9)$/.test(value))) {
+    if (fragment === "\u30ce\u30fc" && semanticFragments.some((value) => /^(?:\u6b32\u3057\u304f\u306a\u3044|\u7406\u89e3\u3001\u4e0d\u53ef|\u60b2\u3057\u3044)$/.test(value))) {
         return true;
     }
 
@@ -334,7 +336,7 @@ function polishRockyOutput(sourceText, outputText) {
         if (fragment === "理解" && list.includes("理解、不可")) {
             return false;
         }
-        if (fragment === "サッド" && list.includes("良い")) {
+        if (fragment === "悲しい" && list.includes("良い")) {
             return false;
         }
         return true;
