@@ -20,6 +20,7 @@ const SYSTEM_INSTRUCTION = [
     "『どうして』『なぜ』『理由がわからない』『理解できない』『ほしくない』のような語は重要です。必要なら『質問？』『理解、不可』『悲しい』を使ってください。",
     "『無理』のような一般的すぎる言い換えは避け、『理解、不可』のようなロッキーらしい言い方を優先してください。",
     "フレンド、理解、イエス、ノー、アメイズ、良い、悪いのような語を必要な時だけ自然に使ってください。",
+    "良い、悪い、アメイズは強さを回数で表してください。最大3回までです。グッドやバッドは使わないでください。",
     "毎回同じ語を乱用しないでください。",
     "原作の具体的な文章を再現したり引用したりせず、新しい表現で返してください。",
     "固有名詞と意味は維持してください。"
@@ -29,6 +30,7 @@ const FEW_SHOT_EXAMPLES = [
     "入力: グレースは本当に頼れる友達です。ありがとう。\n出力: グレース、頼れる。フレンド。感謝。",
     "入力: どうしてほしくないのか理解できない。\n出力: なぜ、欲しくない？ 理解、不可。悲しい。",
     "入力: なぜ持っていないのかわからない。\n出力: なぜ持っていない、質問？ 理解、不可。",
+    "入力: なるほど、それはいいですね！すごくいい！\n出力: なるほど。イエス。それ、良い。良い。良い。アメイズ。アメイズ。アメイズ。",
     "入力: 翻訳できました。\n出力: 翻訳、完了。良い。",
     "入力: この装置は危険だから、今すぐ止めてください。\n出力: この装置、悪い。今、止めてほしい。",
     "入力: 私はまだ分かっていません。でも、やってみます。\n出力: わたし、まだ理解、不可。しかし、試す。"
@@ -249,6 +251,67 @@ function buildSemanticFragments(sourceText) {
     return fragments;
 }
 
+function countPatternMatches(text, pattern) {
+    return (String(text || "").match(pattern) || []).length;
+}
+
+function detectRockyTokenTargets(sourceText) {
+    const text = String(sourceText || "");
+    const emphasisBoost = /(?:すごく|とても|かなり|めっちゃ|本当に|超|ものすごく)/.test(text) ? 1 : 0;
+    const exclamationBoost = /[!！]/.test(text) ? 1 : 0;
+    const goodBase = Math.min(countPatternMatches(text, /(?:良い|いい|よい|素晴らしい|最高|嬉しい|うれしい|助かる|ありがたい)/g), 1);
+    const badBase = Math.min(countPatternMatches(text, /(?:悪い|最悪|ひどい|だめ|ダメ|危険|困る|嫌|いや)/g), 1);
+    const amazeBase = Math.min(countPatternMatches(text, /(?:アメイズ|すごい|すごく|驚|感動|なるほど|やばい|信じられない)/g), 1);
+
+    return {
+        good: goodBase ? Math.min(goodBase + emphasisBoost + exclamationBoost, 3) : 0,
+        bad: badBase ? Math.min(badBase + emphasisBoost + exclamationBoost, 3) : 0,
+        amaze: amazeBase ? Math.min(amazeBase + emphasisBoost + exclamationBoost, 3) : 0
+    };
+}
+
+function countTokenMentions(fragments, token) {
+    return fragments.reduce((count, fragment) => count + (String(fragment || "").includes(token) ? 1 : 0), 0);
+}
+
+function ensureRockyTokenCount(fragments, token, targetCount) {
+    const limitedTarget = Math.min(Math.max(targetCount, 0), 3);
+    if (!limitedTarget) {
+        return fragments;
+    }
+
+    const next = [...fragments];
+    let currentCount = countTokenMentions(next, token);
+
+    if (!currentCount) {
+        next.push(token);
+        currentCount = 1;
+    }
+
+    while (currentCount < limitedTarget) {
+        const insertIndex = next.map((fragment) => String(fragment || "").includes(token)).lastIndexOf(true);
+        if (insertIndex === -1) {
+            next.push(token);
+        } else {
+            next.splice(insertIndex + 1, 0, token);
+        }
+        currentCount += 1;
+    }
+
+    return next;
+}
+
+function applyRockyIntensity(sourceText, fragments) {
+    const targets = detectRockyTokenTargets(sourceText);
+    let next = [...fragments];
+
+    next = ensureRockyTokenCount(next, "良い", targets.good);
+    next = ensureRockyTokenCount(next, "悪い", targets.bad);
+    next = ensureRockyTokenCount(next, "アメイズ", targets.amaze);
+
+    return next;
+}
+
 function splitRockyFragments(text) {
     return String(text || "")
         .replace(/\n+/g, "\u3002")
@@ -285,6 +348,31 @@ function shouldDropModelFragment(fragment, sourceText, semanticFragments) {
     }
 
     return false;
+}
+function mergeContextualFragments(fragments) {
+    const leadTokens = new Set(["良い", "悪い", "アメイズ", "イエス", "ノー", "悲しい"]);
+    const standaloneTokens = /^(?:良い|悪い|アメイズ|イエス|ノー|悲しい|質問？|理解、不可)$/;
+
+    return fragments.reduce((merged, fragment) => {
+        const value = String(fragment || "").trim();
+        if (!value) {
+            return merged;
+        }
+
+        const previous = merged[merged.length - 1] || "";
+        if (
+            previous &&
+            leadTokens.has(value) &&
+            !standaloneTokens.test(previous) &&
+            /^[^。？?、]{1,12}$/.test(previous)
+        ) {
+            merged[merged.length - 1] = previous + "、" + value;
+            return merged;
+        }
+
+        merged.push(value);
+        return merged;
+    }, []);
 }
 function formatRockyFragments(fragments) {
     return fragments.reduce((result, fragment, index) => {
@@ -346,7 +434,7 @@ function polishRockyOutput(sourceText, outputText) {
         return String(outputText || "").trim();
     }
 
-    return formatRockyFragments(cleaned);
+    return formatRockyFragments(mergeContextualFragments(applyRockyIntensity(sourceText, cleaned)));
 }
 
 function loadLocalApiKey() {
